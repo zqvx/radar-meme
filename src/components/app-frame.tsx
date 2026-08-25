@@ -5,11 +5,13 @@ import {
   Layers,
   Radar,
   ScanSearch,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "Radar", icon: Radar },
+  { to: "/pick", label: "Pick", icon: Sparkles },
   { to: "/narrativas", label: "Narrativas", icon: Layers },
   { to: "/xray", label: "X-Ray", icon: ScanSearch },
   { to: "/catalises", label: "Catálises", icon: CalendarDays },
@@ -84,7 +86,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
         aria-label="Secções"
       >
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-6">
           {NAV.map((item) => {
             const active =
               item.to === "/"

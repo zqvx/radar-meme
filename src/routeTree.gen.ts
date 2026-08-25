@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CatalisesRouteImport } from './routes/catalises'
 import { Route as DiarioRouteImport } from './routes/diario'
 import { Route as NarrativasRouteImport } from './routes/narrativas'
+import { Route as PickRouteImport } from './routes/pick'
 import { Route as XrayRouteImport } from './routes/xray'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const NarrativasRoute = NarrativasRouteImport.update({
   path: '/narrativas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PickRoute = PickRouteImport.update({
+  id: '/pick',
+  path: '/pick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const XrayRoute = XrayRouteImport.update({
   id: '/xray',
   path: '/xray',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/catalises': typeof CatalisesRoute
   '/diario': typeof DiarioRoute
   '/narrativas': typeof NarrativasRoute
+  '/pick': typeof PickRoute
   '/xray': typeof XrayRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/catalises': typeof CatalisesRoute
   '/diario': typeof DiarioRoute
   '/narrativas': typeof NarrativasRoute
+  '/pick': typeof PickRoute
   '/xray': typeof XrayRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,22 @@ export interface FileRoutesById {
   '/catalises': typeof CatalisesRoute
   '/diario': typeof DiarioRoute
   '/narrativas': typeof NarrativasRoute
+  '/pick': typeof PickRoute
   '/xray': typeof XrayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/catalises' | '/diario' | '/narrativas' | '/xray'
+  fullPaths: '/' | '/catalises' | '/diario' | '/narrativas' | '/pick' | '/xray'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/catalises' | '/diario' | '/narrativas' | '/xray'
-  id: '__root__' | '/' | '/catalises' | '/diario' | '/narrativas' | '/xray'
+  to: '/' | '/catalises' | '/diario' | '/narrativas' | '/pick' | '/xray'
+  id:
+    | '__root__'
+    | '/'
+    | '/catalises'
+    | '/diario'
+    | '/narrativas'
+    | '/pick'
+    | '/xray'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +92,7 @@ export interface RootRouteChildren {
   CatalisesRoute: typeof CatalisesRoute
   DiarioRoute: typeof DiarioRoute
   NarrativasRoute: typeof NarrativasRoute
+  PickRoute: typeof PickRoute
   XrayRoute: typeof XrayRoute
 }
 
@@ -109,6 +126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NarrativasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pick': {
+      id: '/pick'
+      path: '/pick'
+      fullPath: '/pick'
+      preLoaderRoute: typeof PickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/xray': {
       id: '/xray'
       path: '/xray'
@@ -124,6 +148,7 @@ const rootRouteChildren: RootRouteChildren = {
   CatalisesRoute: CatalisesRoute,
   DiarioRoute: DiarioRoute,
   NarrativasRoute: NarrativasRoute,
+  PickRoute: PickRoute,
   XrayRoute: XrayRoute,
 }
 export const routeTree = rootRouteImport

@@ -111,15 +111,20 @@ function main(argv) {
     process.exit(2);
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  // On Windows, npm installs binaries like `vite` as `vite.cmd` shims.
-  // `spawn()` without a shell can't resolve those (`ENOENT`) even though the
-  // same command works fine at a normal prompt — Windows needs the shell to
-  // do PATHEXT lookup. POSIX doesn't need this, so keep it Windows-only.
-  const child = spawn(command, args, {
-    stdio: "inherit",
-    env,
-    shell: process.platform === "win32",
-  });
+  // On Windows, npm installs binaries like `vite` as `vite.cmd` shims, which
+  // `spawn()` can only run through a shell (`ENOENT` otherwise — Windows
+  // needs PATHEXT lookup that only the shell does). POSIX doesn't need this.
+  //
+  // Node warns when `shell: true` is combined with an `args` array, because
+  // it can't escape each arg individually once the shell is involved. Our
+  // args here are fixed, developer-controlled flags (no untrusted input), so
+  // we sidestep the warning by quoting them ourselves and passing one
+  // command string instead of a separate args array.
+  const isWindows = process.platform === "win32";
+  const quoteArg = (a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+  const child = isWindows
+    ? spawn([command, ...args.map(quoteArg)].join(" "), { stdio: "inherit", env, shell: true })
+    : spawn(command, args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));

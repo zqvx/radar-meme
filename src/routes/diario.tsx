@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Scissors, Target, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getPrices, getUsdEur, xrayToken } from "@/lib/dex-api";
 import { formatEur, formatUsd } from "@/lib/format";
-import { useBets, useUsdEur } from "@/lib/storage";
+import { useBets, useExitRules, useUsdEur } from "@/lib/storage";
 import type { Bet } from "@/lib/types";
 import { cn, isValidAddress, shortAddress } from "@/lib/utils";
 
@@ -35,6 +35,7 @@ function DiarioPage() {
   const search = Route.useSearch();
   const [bets, setBets] = useBets();
   const [usdEur, setUsdEur] = useUsdEur();
+  const [exitRules, setExitRules] = useExitRules();
   const [name, setName] = useState(search.name ?? "");
   const [address, setAddress] = useState(search.ca ?? "");
   const [chainId, setChainId] = useState(search.chain ?? "");
@@ -145,7 +146,15 @@ function DiarioPage() {
           : b.entryPriceUsd;
     const multiple = b.entryPriceUsd > 0 ? current / b.entryPriceUsd : 1;
     const pnl = (multiple - 1) * b.stakeEur;
-    return { bet: b, current, multiple, pnl };
+    const gainPct = (multiple - 1) * 100;
+    const signal: "target" | "stop" | null = b.closedAt
+      ? null
+      : gainPct >= exitRules.takeProfitPct
+        ? "target"
+        : gainPct <= -exitRules.stopLossPct
+          ? "stop"
+          : null;
+    return { bet: b, current, multiple, pnl, signal };
   });
 
   const openPnl = rows.filter((r) => !r.bet.closedAt).reduce((s, r) => s + r.pnl, 0);
@@ -198,6 +207,48 @@ function DiarioPage() {
         />
       </section>
 
+      <section className="mt-6 rounded-xl bg-surface p-4 shadow-[var(--shadow-border)]">
+        <p className="text-sm text-fg">A tua regra de saída</p>
+        <p className="mt-1 text-xs text-muted">
+          Isto não prevê nada — só te avisa quando uma posição aberta bate os
+          números que TU escolheres. Decidir continua a ser contigo.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <label className="block text-xs text-subtle">
+            Vender com lucro de +%
+            <Input
+              className="mt-1"
+              type="number"
+              min="1"
+              step="1"
+              value={exitRules.takeProfitPct}
+              onChange={(e) =>
+                setExitRules((r) => ({
+                  ...r,
+                  takeProfitPct: Number(e.target.value) || 1,
+                }))
+              }
+            />
+          </label>
+          <label className="block text-xs text-subtle">
+            Cortar com perda de -%
+            <Input
+              className="mt-1"
+              type="number"
+              min="1"
+              step="1"
+              value={exitRules.stopLossPct}
+              onChange={(e) =>
+                setExitRules((r) => ({
+                  ...r,
+                  stopLossPct: Number(e.target.value) || 1,
+                }))
+              }
+            />
+          </label>
+        </div>
+      </section>
+
       {chart.length >= 2 ? (
         <div className="mt-6 h-48 rounded-xl bg-surface p-3 shadow-[var(--shadow-border)]">
           <ResponsiveContainer width="100%" height="100%">
@@ -226,10 +277,14 @@ function DiarioPage() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <ul className="space-y-3">
-          {rows.map(({ bet, current, multiple, pnl }) => (
+          {rows.map(({ bet, current, multiple, pnl, signal }) => (
             <li
               key={bet.id}
-              className="rounded-xl bg-surface p-4 shadow-[var(--shadow-border)]"
+              className={cn(
+                "rounded-xl bg-surface p-4 shadow-[var(--shadow-border)]",
+                signal === "target" && "ring-1 ring-good/50",
+                signal === "stop" && "ring-1 ring-bad/50",
+              )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -249,6 +304,20 @@ function DiarioPage() {
                   {formatEur(pnl)}
                 </p>
               </div>
+              {signal === "target" ? (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-good">
+                  <Target className="size-3.5" />
+                  Bateste o teu alvo de +{exitRules.takeProfitPct}%. Tu
+                  decidiste isto, não o app.
+                </p>
+              ) : null}
+              {signal === "stop" ? (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-bad">
+                  <Scissors className="size-3.5" />
+                  Bateste o teu corte de -{exitRules.stopLossPct}%. Tu
+                  decidiste isto, não o app.
+                </p>
+              ) : null}
               <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
                 <div>
                   <dt className="text-xs text-subtle">Stake</dt>
@@ -369,6 +438,23 @@ function DiarioPage() {
               placeholder="Porque é que isto merece 1€"
             />
           </label>
+          {Number(stake) > 0 ? (
+            <div className="mt-3 rounded-lg bg-elevated p-3">
+              <p className="text-xs text-subtle">
+                Se isto multiplicar (aritmética, não previsão):
+              </p>
+              <dl className="mt-2 grid grid-cols-4 gap-2 text-center text-xs">
+                {[2, 5, 10, 20].map((m) => (
+                  <div key={m}>
+                    <dt className="font-mono text-subtle">{m}×</dt>
+                    <dd className="font-mono tabular-nums text-good">
+                      +{formatEur((m - 1) * Number(stake))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ) : null}
           <Button type="submit" className="mt-4 w-full">
             Registar
           </Button>

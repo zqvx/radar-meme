@@ -39,6 +39,22 @@ echo Node.js encontrado:
 node --version
 echo.
 
+rem --- Ja ha um servidor nosso a responder nesta porta? Reaproveita-o. ---
+curl -s -o nul -w "%%{http_code}" http://localhost:8090/ > "%TEMP%\radarmeme_status.txt" 2>nul
+set /p already_status=<"%TEMP%\radarmeme_status.txt"
+del "%TEMP%\radarmeme_status.txt" >nul 2>nul
+
+if "!already_status!"=="200" (
+  echo Ja ha um Radar Meme a correr em http://localhost:8090/ - a abrir so o browser.
+  start "" http://localhost:8090/
+  echo.
+  echo Podes fechar esta janela. O servidor que ja estava aberto
+  echo continua a correr noutra janela.
+  echo.
+  pause
+  exit /b 0
+)
+
 if not exist "node_modules" (
   echo A instalar dependencias pela primeira vez ^(pode demorar 1-2 min^)...
   echo A gravar detalhes em install-log.txt em caso de erro.
@@ -56,7 +72,7 @@ if not exist "node_modules" (
 )
 
 echo A arrancar o servidor numa janela separada chamada
-echo "Radar Meme - servidor ^(nao fechar^)"...
+echo "Radar Meme - servidor (nao fechar)"...
 echo.
 start "Radar Meme - servidor (nao fechar)" cmd /k "npm run dev"
 
@@ -80,8 +96,15 @@ if !ready! == 1 (
   start "" http://localhost:8090/
 ) else (
   echo O servidor ainda nao respondeu apos 40 segundos.
-  echo Olha para a janela "Radar Meme - servidor" para ver se ha algum erro,
-  echo ou abre http://localhost:8090/ manualmente daqui a pouco.
+  echo.
+  echo Se a outra janela mostrar "Port 8090 is already in use", ha
+  echo um servidor antigo pendurado. Para o encontrar e fechar:
+  echo   1. Abre outro cmd e escreve: netstat -ano ^| findstr :8090
+  echo   2. Copia o ultimo numero da linha ^(o PID^)
+  echo   3. Escreve: taskkill /PID numero_que_copiaste /F
+  echo   4. Corre o iniciar.bat outra vez.
+  echo.
+  echo Ou olha para a janela "Radar Meme - servidor" para outros erros.
 )
 
 echo.

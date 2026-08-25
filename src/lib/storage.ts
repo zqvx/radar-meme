@@ -61,6 +61,19 @@ export function useBets() {
   return useLocalState<Bet[]>("radar.bets", []);
 }
 
+export type ExitRules = { takeProfitPct: number; stopLossPct: number };
+
+export const defaultExitRules: ExitRules = {
+  takeProfitPct: 100,
+  stopLossPct: 50,
+};
+
+/** Regras de saída que TU defines (alvo de lucro / corte de perda em %).
+ * O app só avisa quando as bates — nunca decide por ti nem prevê nada. */
+export function useExitRules() {
+  return useLocalState<ExitRules>("radar.exitRules", defaultExitRules);
+}
+
 export function useUsdEur() {
   return useLocalState<number>("radar.usdEur", 0.86);
 }
