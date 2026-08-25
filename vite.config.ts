@@ -155,6 +155,9 @@ export default defineConfig(({ command, isPreview }) => ({
     host: "0.0.0.0",
     port: 8090,
     strictPort: true,
+    // Preview proxy fronta o dev-server por hosts dinâmicos (*.e2b.app);
+    // sem isto o Vite 8 devolve 403 ao host do preview.
+    allowedHosts: true,
   },
   preview: {
     host: "127.0.0.1",

@@ -23,15 +23,30 @@ export function useLocalState<T>(key: string, initial: T) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setValue(readJson(key, initial));
-    setHydrated(true);
+    const hydrate = () => {
+      setValue(readJson(key, initial));
+      setHydrated(true);
+    };
+    hydrate();
+    // Sync entre abas: o storage só tem UMA verdade. Se outra aba escrever
+    // nesta chave (ex.: fechar uma aposta em /diario enquanto /pick está
+    // aberta noutra aba), adota o estado novo em vez de continuar com a
+    // memória velha — que antes sobreescrevia o localStorage a seguir.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key || e.key === null) hydrate();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const set = useCallback(
     (next: T | ((prev: T) => T)) => {
       setValue((prev) => {
-        const resolved = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
+        // Leitura fresca: a escrita assenta no último valor em disco, não na
+        // memória desta aba (que outra aba pode já ter ultrapassado).
+        const base = readJson(key, prev);
+        const resolved = typeof next === "function" ? (next as (p: T) => T)(base) : next;
         writeJson(key, resolved);
         return resolved;
       });
