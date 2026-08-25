@@ -67,6 +67,9 @@ function DiarioPage() {
       }),
     enabled: openWithCa.length > 0,
     staleTime: 30_000,
+    // Sem isto a query só refaz focus/remount e o Diário fica congelado.
+    // Com isto: preços (e P&L) renovam sozinhos a cada 30s, só com a página aberta.
+    refetchInterval: 30_000,
   });
 
   const priceMap = useMemo(() => {
@@ -192,6 +195,27 @@ function DiarioPage() {
         O tamanho força disciplina. Câmbio USD/EUR {usdEur.toFixed(3)} — o P&L
         é sobre a tua stake em euros, não sobre o dólar.
       </p>
+      {openWithCa.length > 0 ? (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-good opacity-60" />
+            <span className="relative inline-flex size-2 rounded-full bg-good" />
+          </span>
+          Preços em direto — renovam sozinhos a cada 30s
+          {pricesQ.dataUpdatedAt > 0 ? (
+            <span className="text-subtle">
+              · últimos: {new Date(pricesQ.dataUpdatedAt).toLocaleTimeString("pt-PT")}
+            </span>
+          ) : null}
+          {pricesQ.isFetching ? (
+            <span className="text-subtle">· a renovar…</span>
+          ) : null}
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-subtle">
+          Sem contratos registados — nada a renovar em direto.
+        </p>
+      )}
 
       <section className="mt-8 grid gap-3 sm:grid-cols-3">
         <Kpi label="Em jogo" value={formatEur(deployed)} />
