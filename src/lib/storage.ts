@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CURATED_CATALYSES } from "./catalyses-seed";
 import type { Bet, Catalysis, ManualChecks } from "./types";
 
@@ -21,19 +21,35 @@ function writeJson(key: string, value: unknown) {
 export function useLocalState<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(initial);
   const [hydrated, setHydrated] = useState(false);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
+  // Hydration: memória parte do que está em disco.
   useEffect(() => {
-    const hydrate = () => {
-      setValue(readJson(key, initial));
-      setHydrated(true);
-    };
-    hydrate();
-    // Sync entre abas: o storage só tem UMA verdade. Se outra aba escrever
-    // nesta chave (ex.: fechar uma aposta em /diario enquanto /pick está
-    // aberta noutra aba), adota o estado novo em vez de continuar com a
-    // memória velha — que antes sobreescrevia o localStorage a seguir.
+    setValue(readJson(key, initial));
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // Persistência: memória é a fonte da verdade; o disco é o espelho.
+  // A escrita fica FORA do updater (o updater tem de ser puro — se o React
+  // o chamar duas vezes, efeitos lá dentro executam duas vezes e o toggle
+  // "Seguir"/"Na lista" cancela a si próprio).
+  useEffect(() => {
+    if (!hydrated) return;
+    writeJson(key, value);
+  }, [value, key, hydrated]);
+
+  // Sync entre abas: adota escrita externa só se o conteúdo for diferente —
+  // o guarda do JSON é o que quebra o ping-pong (A escreve → B adota → B
+  // escreve o mesmo → A vê igual → para).
+  useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === key || e.key === null) hydrate();
+      if (e.key !== null && e.key !== key) return;
+      const fresh = readJson(key, initial);
+      if (JSON.stringify(fresh) !== JSON.stringify(valueRef.current)) {
+        setValue(fresh);
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -42,16 +58,11 @@ export function useLocalState<T>(key: string, initial: T) {
 
   const set = useCallback(
     (next: T | ((prev: T) => T)) => {
-      setValue((prev) => {
-        // Leitura fresca: a escrita assenta no último valor em disco, não na
-        // memória desta aba (que outra aba pode já ter ultrapassado).
-        const base = readJson(key, prev);
-        const resolved = typeof next === "function" ? (next as (p: T) => T)(base) : next;
-        writeJson(key, resolved);
-        return resolved;
-      });
+      setValue((prev) =>
+        typeof next === "function" ? (next as (p: T) => T)(prev) : next,
+      );
     },
-    [key],
+    [],
   );
 
   return [value, set, hydrated] as const;

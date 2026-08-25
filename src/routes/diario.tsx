@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Plus, Scissors, Target, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -66,10 +66,10 @@ function DiarioPage() {
         },
       }),
     enabled: openWithCa.length > 0,
-    staleTime: 30_000,
+    staleTime: 10_000,
     // Sem isto a query só refaz focus/remount e o Diário fica congelado.
-    // Com isto: preços (e P&L) renovam sozinhos a cada 30s, só com a página aberta.
-    refetchInterval: 30_000,
+    // 10s: em moedas voláteis, 30s já parecia "desatualizado" vs DexScreener.
+    refetchInterval: 10_000,
   });
 
   const priceMap = useMemo(() => {
@@ -81,6 +81,18 @@ function DiarioPage() {
     }
     return m;
   }, [pricesQ.data]);
+
+  // Relógio de 1s para "há Xs" — só corre com posições abertas.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (openWithCa.length === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [openWithCa.length]);
+  const ageSec =
+    pricesQ.dataUpdatedAt > 0
+      ? Math.max(0, Math.floor((now - pricesQ.dataUpdatedAt) / 1000))
+      : null;
 
   const quote = useMutation({
     mutationFn: () =>
@@ -141,16 +153,20 @@ function DiarioPage() {
   }
 
   const rows = bets.map((b) => {
-    const current =
-      b.closedAt && b.exitPriceUsd
-        ? b.exitPriceUsd
-        : b.address
-          ? (priceMap.get(b.address.toLowerCase()) ?? b.entryPriceUsd)
-          : b.entryPriceUsd;
-    const multiple = b.entryPriceUsd > 0 ? current / b.entryPriceUsd : 1;
-    const pnl = (multiple - 1) * b.stakeEur;
-    const gainPct = (multiple - 1) * 100;
-    const signal: "target" | "stop" | null = b.closedAt
+    const isClosed = !!(b.closedAt && b.exitPriceUsd);
+    // Aberta + com contrato + sem preço ao vivo = "sem preço", NUNCA o preço
+    // de entrada disfarçado (isso é que fazia a coluna parecer desatualizada).
+    const live = b.address ? priceMap.get(b.address.toLowerCase()) : undefined;
+    const current = isClosed
+      ? b.exitPriceUsd!
+      : b.address
+        ? (live && live > 0 ? live : null)
+        : null;
+    const multiple =
+      current != null && b.entryPriceUsd > 0 ? current / b.entryPriceUsd : null;
+    const pnl = multiple != null ? (multiple - 1) * b.stakeEur : null;
+    const gainPct = multiple != null ? (multiple - 1) * 100 : 0;
+    const signal: "target" | "stop" | null = isClosed
       ? null
       : gainPct >= exitRules.takeProfitPct
         ? "target"
@@ -160,10 +176,12 @@ function DiarioPage() {
     return { bet: b, current, multiple, pnl, signal };
   });
 
-  const openPnl = rows.filter((r) => !r.bet.closedAt).reduce((s, r) => s + r.pnl, 0);
+  const openPnl = rows
+    .filter((r) => !r.bet.closedAt && r.pnl != null)
+    .reduce((s, r) => s + (r.pnl ?? 0), 0);
   const closedPnl = rows
     .filter((r) => r.bet.closedAt)
-    .reduce((s, r) => s + r.pnl, 0);
+    .reduce((s, r) => s + (r.pnl ?? 0), 0);
   const deployed = rows
     .filter((r) => !r.bet.closedAt)
     .reduce((s, r) => s + r.bet.stakeEur, 0);
@@ -175,7 +193,7 @@ function DiarioPage() {
       .reverse();
     let acc = 0;
     return closed.map((r) => {
-      acc += r.pnl;
+      acc += r.pnl ?? 0;
       return {
         t: new Date(r.bet.closedAt!).toLocaleDateString("pt-PT"),
         pnl: Number(acc.toFixed(2)),
@@ -201,12 +219,14 @@ function DiarioPage() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-good opacity-60" />
             <span className="relative inline-flex size-2 rounded-full bg-good" />
           </span>
-          Preços em direto — renovam sozinhos a cada 30s
-          {pricesQ.dataUpdatedAt > 0 ? (
-            <span className="text-subtle">
-              · últimos: {new Date(pricesQ.dataUpdatedAt).toLocaleTimeString("pt-PT")}
+          Preços em direto — renovam sozinhos a cada 10s
+          {ageSec != null ? (
+            <span className={ageSec > 45 ? "text-warn" : "text-subtle"}>
+              · atualizado há {ageSec}s
             </span>
-          ) : null}
+          ) : (
+            <span className="text-subtle">· a carregar…</span>
+          )}
           {pricesQ.isFetching ? (
             <span className="text-subtle">· a renovar…</span>
           ) : null}
@@ -321,11 +341,14 @@ function DiarioPage() {
                 <p
                   className={cn(
                     "font-mono text-sm tabular-nums",
-                    pnl >= 0 ? "text-good" : "text-bad",
+                    pnl == null
+                      ? "text-subtle"
+                      : pnl >= 0
+                        ? "text-good"
+                        : "text-bad",
                   )}
                 >
-                  {pnl >= 0 ? "+" : ""}
-                  {formatEur(pnl)}
+                  {pnl == null ? "—" : `${pnl >= 0 ? "+" : ""}${formatEur(pnl)}`}
                 </p>
               </div>
               {signal === "target" ? (
@@ -356,7 +379,17 @@ function DiarioPage() {
                 <div>
                   <dt className="text-xs text-subtle">Agora</dt>
                   <dd className="font-mono tabular-nums">
-                    {formatUsd(current, false)} · {multiple.toFixed(2)}×
+                    {current == null ? (
+                      bet.address ? (
+                        <span className="text-warn">sem preço</span>
+                      ) : (
+                        "—"
+                      )
+                    ) : (
+                      <>
+                        {formatUsd(current, false)} · {multiple!.toFixed(2)}×
+                      </>
+                    )}
                   </dd>
                 </div>
               </dl>
