@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, ExternalLink, ScanSearch, Star } from "lucide-react";
+import { Copy, ExternalLink, ScanSearch, ShoppingCart, Star } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { BuyPanel } from "@/components/buy-panel";
 import { ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +45,7 @@ export function TokenCard({
   watched?: boolean;
   onToggleWatch?: (key: string) => void;
 }) {
+  const [buyOpen, setBuyOpen] = useState(false);
   const key = tokenKey(token.chainId, token.tokenAddress);
   const hardFlags = token.score.flags.filter((f) => f.severity === "bad");
   const tone =
@@ -118,6 +121,15 @@ export function TokenCard({
           <ScanSearch className="size-4" />
           X-Ray
         </Link>
+        <Button
+          variant={buyOpen ? "secondary" : "primary"}
+          size="md"
+          onClick={() => setBuyOpen((v) => !v)}
+          aria-expanded={buyOpen}
+        >
+          <ShoppingCart className="size-4" />
+          {buyOpen ? "Fechar" : "Comprar"}
+        </Button>
         {onToggleWatch ? (
           <Button
             variant="secondary"
@@ -150,6 +162,21 @@ export function TokenCard({
           <ExternalLink className="size-4" />
         </a>
       </div>
+
+      {buyOpen ? (
+        <div className="mt-3 border-t border-fg/10 pt-3">
+          <BuyPanel
+            compact
+            token={{
+              chainId: token.chainId,
+              address: token.tokenAddress,
+              symbol: token.symbol,
+              name: token.name,
+              hintPriceUsd: token.priceUsd,
+            }}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }

@@ -6,6 +6,7 @@ import { ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { aiAvailable, readNarrative } from "@/lib/ai";
+import { BuyPanel } from "@/components/buy-panel";
 import { xrayToken } from "@/lib/dex-api";
 import {
   chainLabel,
@@ -238,6 +239,30 @@ function XRayResult({
           />
         </dl>
 
+        {token.marketCap > 0 ? (
+          <div className="mt-5 rounded-lg bg-elevated p-3">
+            <p className="text-xs text-subtle">
+              Runway de mcap — quanto faltaria até estes marcos (aritmética,
+              não previsão):
+            </p>
+            <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+              {[1_000_000, 3_000_000, 10_000_000].map((v) => (
+                <div key={v} className="rounded-md bg-bg px-2 py-2">
+                  <dt className="font-mono text-subtle">mcap {formatUsd(v)}</dt>
+                  <dd
+                    className={cn(
+                      "mt-0.5 font-mono text-sm tabular-nums",
+                      v >= token.marketCap ? "text-good" : "text-subtle",
+                    )}
+                  >
+                    {(v / token.marketCap).toFixed(1)}×
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
+
         {token.description ? (
           <p className="mt-5 text-sm leading-relaxed text-muted">
             {token.description}
@@ -373,12 +398,23 @@ function XRayResult({
               );
             })}
           </ul>
+          <div className="mt-5">
+            <BuyPanel
+              token={{
+                chainId: token.chainId,
+                address: token.tokenAddress,
+                symbol: token.symbol,
+                name: token.name,
+                hintPriceUsd: token.priceUsd,
+              }}
+            />
+          </div>
           <Link
             to="/diario"
             search={{ ca: token.tokenAddress, chain: token.chainId, name: token.symbol }}
-            className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md bg-accent text-sm font-medium text-accent-fg"
+            className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-md bg-elevated text-sm font-medium text-fg shadow-[var(--shadow-border)] hover:shadow-[var(--shadow-border-hover)]"
           >
-            Registar aposta de 1€
+            Gerir na Carteira
           </Link>
         </div>
       </section>

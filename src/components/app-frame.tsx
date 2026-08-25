@@ -1,11 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  BookOpen,
   CalendarDays,
   Layers,
   Radar,
   ScanSearch,
   Sparkles,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ const NAV = [
   { to: "/narrativas", label: "Narrativas", icon: Layers },
   { to: "/xray", label: "X-Ray", icon: ScanSearch },
   { to: "/catalises", label: "Catálises", icon: CalendarDays },
-  { to: "/diario", label: "Diário", icon: BookOpen },
+  { to: "/diario", label: "Carteira", icon: Wallet },
 ] as const;
 
 export function AppFrame({ children }: { children: React.ReactNode }) {

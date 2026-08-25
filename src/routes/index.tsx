@@ -5,13 +5,44 @@ import { RadarField } from "@/components/radar-field";
 import { TokenCard } from "@/components/token-card";
 import { Button } from "@/components/ui/button";
 import { scanRadar } from "@/lib/dex-api";
-import { chainLabel, tokenKey } from "@/lib/format";
+import { ageMs, chainLabel, tokenKey } from "@/lib/format";
 import { useWatchlist } from "@/lib/storage";
 import type { ScoredToken } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({ component: RadarPage });
+
+type SortKey =
+  | "score"
+  | "potential"
+  | "h24"
+  | "h1"
+  | "mcap"
+  | "volume"
+  | "liquidity";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  score: "Score",
+  potential: "Potencial mcap $1M",
+  h24: "Momentum 24h",
+  h1: "Momentum 1h",
+  mcap: "Mcap ↑ (runway)",
+  volume: "Volume 24h",
+  liquidity: "Liquidez",
+};
+
+type AgeKey = "any" | "2h" | "12h" | "7d" | "7d+";
+
+const AGE_MS: Record<Exclude<AgeKey, "any" | "7d+">, number> = {
+  "2h": 2 * 3_600_000,
+  "12h": 12 * 3_600_000,
+  "7d": 7 * 86_400_000,
+};
+
+function potential1m(t: ScoredToken): number {
+  return t.marketCap > 0 ? 1_000_000 / t.marketCap : 0;
+}
 
 function RadarPage() {
   const qc = useQueryClient();
@@ -20,6 +51,9 @@ function RadarPage() {
   const [minScore, setMinScore] = useState(0);
   const [watchOnly, setWatchOnly] = useState(false);
   const [hideFlagged, setHideFlagged] = useState(false);
+  const [sort, setSort] = useState<SortKey>("score");
+  const [mcapMin, setMcapMin] = useState(0);
+  const [age, setAge] = useState<AgeKey>("any");
 
   const query = useQuery({
     queryKey: ["radar"],
@@ -50,16 +84,44 @@ function RadarPage() {
   }, [tokens]);
 
   const filtered = useMemo(() => {
-    return tokens.filter((t) => {
+    const now = Date.now();
+    const arr = tokens.filter((t) => {
       if (chain !== "all" && t.chainId !== chain) return false;
       if (t.score.auto < minScore) return false;
       if (watchOnly && !watchlist.includes(tokenKey(t.chainId, t.tokenAddress)))
         return false;
       if (hideFlagged && t.score.flags.some((f) => f.severity === "bad"))
         return false;
+      // Filtro de lucro: runway de mcap (so micro-caps com espaço até $1M).
+      if (mcapMin > 0 && (t.marketCap <= 0 || t.marketCap < mcapMin))
+        return false;
+      // Idade do par: <7d = janela clássica de meme; >7d = já "amadureceu".
+      if (age !== "any") {
+        const ms = ageMs(t.pairCreatedAt, now);
+        if (Number.isNaN(ms)) return false;
+        if (age === "7d+") {
+          if (ms < 7 * 86_400_000) return false;
+        } else if (ms >= AGE_MS[age]) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [tokens, chain, minScore, watchOnly, watchlist, hideFlagged]);
+    const bySort: Record<SortKey, (a: ScoredToken, b: ScoredToken) => number> =
+      {
+        score: (a, b) =>
+          b.score.auto - a.score.auto || potential1m(b) - potential1m(a),
+        potential: (a, b) =>
+          potential1m(b) - potential1m(a) || b.score.auto - a.score.auto,
+        h24: (a, b) => b.priceChangeH24 - a.priceChangeH24,
+        h1: (a, b) => b.priceChangeH1 - a.priceChangeH1,
+        mcap: (a, b) =>
+          (a.marketCap || Infinity) - (b.marketCap || Infinity),
+        volume: (a, b) => b.volumeH24 - a.volumeH24,
+        liquidity: (a, b) => b.liquidityUsd - a.liquidityUsd,
+      };
+    return [...arr].sort(bySort[sort]);
+  }, [tokens, chain, minScore, watchOnly, watchlist, hideFlagged, sort, mcapMin, age]);
 
   const avg =
     tokens.length > 0
@@ -142,6 +204,49 @@ function RadarPage() {
               <option value={25}>25+</option>
               <option value={40}>40+</option>
               <option value={55}>55+</option>
+            </select>
+          </label>
+          <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-subtle">
+            Ordenar por
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="h-11 rounded-md bg-elevated px-3 text-sm text-fg shadow-[var(--shadow-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                <option key={k} value={k}>
+                  {SORT_LABELS[k]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-subtle">
+            Mcap mínimo
+            <select
+              value={mcapMin}
+              onChange={(e) => setMcapMin(Number(e.target.value))}
+              className="h-11 rounded-md bg-elevated px-3 text-sm text-fg shadow-[var(--shadow-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <option value={0}>Qualquer</option>
+              <option value={50000}>≥ $50k</option>
+              <option value={100000}>≥ $100k</option>
+              <option value={250000}>≥ $250k</option>
+              <option value={500000}>≥ $500k</option>
+              <option value={1000000}>≥ $1M</option>
+            </select>
+          </label>
+          <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-subtle">
+            Idade do par
+            <select
+              value={age}
+              onChange={(e) => setAge(e.target.value as AgeKey)}
+              className="h-11 rounded-md bg-elevated px-3 text-sm text-fg shadow-[var(--shadow-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <option value="any">Qualquer</option>
+              <option value="2h">Novo &lt; 2h</option>
+              <option value="12h">&lt; 12h</option>
+              <option value="7d">&lt; 7 dias</option>
+              <option value="7d+">&gt; 7 dias</option>
             </select>
           </label>
           <div className="flex flex-wrap gap-2 lg:pt-5">

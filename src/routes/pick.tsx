@@ -1,12 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert, SkipForward, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RadarField } from "@/components/radar-field";
 import { Button } from "@/components/ui/button";
-import { scanRadar } from "@/lib/dex-api";
-import { chainLabel, formatAge, formatEur, formatPct, formatUsd } from "@/lib/format";
-import { useBets } from "@/lib/storage";
-import type { Bet, ScoredToken } from "@/lib/types";
+import { getPrices, scanRadar } from "@/lib/dex-api";
+import { chainLabel, formatAge, formatEur, formatPct, formatUsd, tokenKey } from "@/lib/format";
+import { readWallet, useExitRules, useUsdEur, useWallet } from "@/lib/storage";
+import { buyToWallet } from "@/lib/wallet";
+import type { ScoredToken } from "@/lib/types";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -25,9 +26,11 @@ function rankCandidates(tokens: ScoredToken[]): ScoredToken[] {
 }
 
 function PickPage() {
-  const [bets, setBets] = useBets();
+  const [wallet, setWallet] = useWallet();
+  const [usdEur] = useUsdEur();
+  const [exitRules] = useExitRules();
   const [skip, setSkip] = useState(0);
-  const [loggedKey, setLoggedKey] = useState<string | null>(null);
+  const [doneKey, setDoneKey] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["radar"],
@@ -39,27 +42,54 @@ function PickPage() {
   const tokens: ScoredToken[] = payload && payload.ok ? payload.tokens : [];
   const candidates = useMemo(() => rankCandidates(tokens), [tokens]);
   const pick = candidates[skip % Math.max(candidates.length, 1)] ?? null;
-  const key = pick ? `${pick.chainId}:${pick.tokenAddress}` : null;
-  const alreadyBet = key
-    ? bets.some((b) => b.address && `${b.chainId}:${b.address}` === key)
+  const key = pick ? tokenKey(pick.chainId, pick.tokenAddress) : null;
+  const alreadyInWallet = key
+    ? wallet.positions.some((p) => p.tokenKey === key) ||
+      wallet.closed.some((p) => p.tokenKey === key)
     : false;
 
-  function registerBet() {
-    if (!pick) return;
-    const bet: Bet = {
-      id: crypto.randomUUID(),
-      name: pick.symbol,
-      address: pick.tokenAddress,
-      chainId: pick.chainId,
-      stakeEur: 1,
-      entryPriceUsd: pick.priceUsd,
-      entryAt: new Date().toISOString(),
-      notes: `Pick automático (score ${pick.score.auto}/80): ${topReasons(pick).join("; ")}`,
-    };
-    setBets((prev) => [bet, ...prev]);
-    setLoggedKey(key);
-    toast.success(`1€ registado em ${pick.symbol}. Já está.`);
-  }
+  // Compra de 1€ na carteira fictícia, a preço vivo (o preço do scan pode
+  // ter uns segundos — em memes, segundos custam pontos percentuais).
+  const buy = useMutation({
+    mutationFn: () =>
+      getPrices({
+        data: {
+          items: [{ address: pick!.tokenAddress, chainId: pick!.chainId }],
+        },
+      }),
+    onSuccess: (res) => {
+      if (!pick) return;
+      const price = res.ok
+        ? res.prices.find(
+            (p) => p.address.toLowerCase() === pick.tokenAddress.toLowerCase(),
+          )?.priceUsd
+        : undefined;
+      if (!res.ok || !price || !(price > 0)) {
+        toast.error("Sem preço vivo — escolhe de novo.");
+        return;
+      }
+      const result = buyToWallet(readWallet(), {
+        chainId: pick.chainId,
+        address: pick.tokenAddress,
+        symbol: pick.symbol,
+        name: pick.name,
+        priceUsd: price,
+        costEur: 1,
+        usdEur,
+        tpPct: exitRules.takeProfitPct,
+        slPct: exitRules.stopLossPct,
+        note: `Pick automático (score ${pick.score.auto}/80)`,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setWallet(result.state);
+      setDoneKey(key);
+      toast.success(`1€ (fictício) em ${pick.symbol} — está na Carteira.`);
+    },
+    onError: () => toast.error("Falha a obter o preço. Tenta de novo."),
+  });
 
   const loading = query.isFetching && tokens.length === 0;
 
@@ -156,15 +186,25 @@ function PickPage() {
 
             <div className="mt-6 flex gap-2">
               <Button
-                onClick={registerBet}
-                disabled={alreadyBet || loggedKey === key}
+                onClick={() => buy.mutate()}
+                disabled={
+                  buy.isPending ||
+                  alreadyInWallet ||
+                  doneKey === key ||
+                  wallet.cash < 1
+                }
                 className="flex-1"
               >
-                {loggedKey === key
-                  ? "Registado ✓"
-                  : alreadyBet
+                {buy.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : null}
+                {doneKey === key
+                  ? "Na carteira ✓"
+                  : alreadyInWallet
                     ? "Já tens esta"
-                    : "Meter 1€ nisto"}
+                    : wallet.cash < 1
+                      ? "Caixa vazia — deposita na Carteira"
+                      : "Meter 1€ nisto"}
               </Button>
               <Button
                 variant="secondary"
