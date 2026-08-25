@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Radar Meme",
+      "hasCanvas": false,
+      "bodyTextLen": 9101,
+      "bodyTextHash": "1c62872eed7df908a713e35909df908a5d105759f5c8e038715820589d38a34e",
+      "bodyTextPrefix": "Saltar para o conteúdo SCANNER Radar Meme Radar Narrativas X-Ray",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Radar Meme",
+      "hasCanvas": false,
+      "bodyTextLen": 9040,
+      "bodyTextHash": "d1264adee20f477b2a48be265521b944f99316343ce69000da3665cdc8baec82",
+      "bodyTextPrefix": "Saltar para o conteúdo SCANNER Radar Meme RADAR Tokens promovido",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

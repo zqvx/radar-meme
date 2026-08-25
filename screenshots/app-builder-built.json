@@ -1,0 +1,41 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Radar Meme",
+      "hasCanvas": false,
+      "bodyTextLen": 11028,
+      "bodyTextHash": "f51de0bf66e02bd1754bb255d988fdd1d93143d33ce527ae34e6e9cb3533f3e0",
+      "bodyTextPrefix": "Saltar para o conteúdo SCANNER Radar Meme Radar Narrativas X-Ray",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Radar Meme",
+      "hasCanvas": false,
+      "bodyTextLen": 10967,
+      "bodyTextHash": "6df6acadcc62bbd059fc51bdb58337ac40465aa3ba5ccf02d2e593db928a3c0d",
+      "bodyTextPrefix": "Saltar para o conteúdo SCANNER Radar Meme RADAR Tokens promovido",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "desktop: body text changed (9101 -> 11028 chars, hash mismatch)",
+    "mobile: body text changed (9040 -> 10967 chars, hash mismatch)"
+  ]
+}
